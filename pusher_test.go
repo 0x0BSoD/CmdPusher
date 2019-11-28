@@ -2,31 +2,55 @@ package CmdPusher
 
 import (
 	"log"
+	"os"
 	"testing"
 )
 
-func TestClient_Connect_Password(t *testing.T) {
-	c := Client{
-		Host:     "you_server",
-		Port:     "22",
-		User:     "testuser",
-		Password: "test",
-		AuthKey:  "",
-		Insecure: true,
-		Timeout:  0,
-		Session:  nil,
-	}
+var CLIENT = Client{
+	Host:     "you_server",
+	Port:     "22",
+	User:     "user",
+	Password: "pass",
+	AuthKey:  "",
+	Insecure: true,
+	Timeout:  0,
+	Session:  nil,
+}
 
-	err := c.Connect()
+func TestClient_Connect_Password(t *testing.T) {
+	err := CLIENT.Connect()
 	if err != nil {
 		panic(err)
 	}
-
 	log.Println("Connected!")
 
-	err = c.Close()
+	err = CLIENT.Close()
 	if err != nil {
 		panic(err)
 	}
+	log.Println("Disconnected!")
+}
+
+func TestClient_Run(t *testing.T) {
+	err := CLIENT.Connect()
+	if err != nil {
+		panic(err)
+	}
+	log.Println("Connected!")
+
+	cmd := &Cmd{
+		Commands:   []string{"ls -la"},
+		CurrentDir: "/etc/puppet/environments",
+		StdOut:     os.Stdout,
+		StdErr:     os.Stderr,
+	}
+
+	err = CLIENT.Run(cmd)
+	if err != nil {
+		panic(err)
+	}
+
+	_ = CLIENT.Close()
+
 	log.Println("Disconnected!")
 }

@@ -2,9 +2,9 @@ package CmdPusher
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"golang.org/x/crypto/ssh"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -17,8 +17,8 @@ import (
 type Cmd struct {
 	Commands   []string
 	CurrentDir string
-	StdOut     bytes.Buffer
-	StdErr     bytes.Buffer
+	StdOut     io.Writer
+	StdErr     io.Writer
 	ReturnCode int
 }
 
@@ -91,6 +91,52 @@ func (c *Client) Connect() error {
 
 func (c *Client) Close() error {
 	return c.Session.Close()
+}
+
+func (c *Client) Run(cmd *Cmd) error {
+	if c.Session == nil {
+		return fmt.Errorf("session not started or already cloded")
+	}
+
+	c.Session.Stdout = cmd.StdOut
+	c.Session.Stderr = cmd.StdErr
+
+	stdin, err := c.Session.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	err = c.Session.Shell()
+	if err != nil {
+		return err
+	}
+
+	if cmd.CurrentDir != "" {
+		_, err = fmt.Fprintf(stdin, "cd %s\n", cmd.CurrentDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, cmd := range cmd.Commands {
+		_, err = fmt.Fprintf(stdin, "%s\n", cmd)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = fmt.Fprintf(stdin, "%s\n", "exit $(echo $?)")
+	if err != nil {
+		return err
+	}
+
+	err = c.Session.Wait()
+	if err != nil {
+		log.Println("wait error")
+		return err
+	}
+
+	return nil
 }
 
 func getHostKey(host string) ssh.PublicKey {
