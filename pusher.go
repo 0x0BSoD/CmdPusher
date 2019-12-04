@@ -31,10 +31,20 @@ type Client struct {
 	Insecure bool
 	Timeout  time.Duration
 	Session  *ssh.Session
+	Client   *ssh.Client
 }
 
 func (c *Client) Connect() error {
 	var checkKey ssh.HostKeyCallback
+
+	banner := func(message string) error {
+		if message != "" {
+			fmt.Printf("\n%s\n", message)
+		}
+
+		return nil
+	}
+
 	var auth ssh.AuthMethod
 
 	if c.Insecure {
@@ -69,6 +79,7 @@ func (c *Client) Connect() error {
 			auth,
 		},
 		HostKeyCallback: checkKey,
+		BannerCallback:  banner,
 		Timeout:         c.Timeout,
 	}
 
@@ -78,8 +89,10 @@ func (c *Client) Connect() error {
 		return err
 	}
 
+	c.Client = client
+
 	// Create a session
-	sess, err := client.NewSession()
+	sess, err := c.Client.NewSession()
 	if err != nil {
 		return err
 	}
@@ -90,12 +103,21 @@ func (c *Client) Connect() error {
 }
 
 func (c *Client) Close() error {
-	return c.Session.Close()
+	err := c.Session.Close()
+	if err != nil {
+		return err
+	}
+	err = c.Client.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) Run(cmd *Cmd) error {
 	if c.Session == nil {
-		return fmt.Errorf("session not started or already cloded")
+		return fmt.Errorf("session not started or already closed")
 	}
 
 	c.Session.Stdout = cmd.StdOut
